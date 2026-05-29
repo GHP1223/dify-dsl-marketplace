@@ -1,0 +1,17 @@
+{
+  "name": "ghp-local-plugins",
+  "owner": {
+    "name": "GHP"
+  },
+  "plugins": [
+    {
+      "name": "dify-dsl",
+      "source": "./plugins/dify-dsl",
+      "description": "Design, generate, review, refactor, and validate Dify Workflow, Chatflow, and RAG Pipeline DSL",
+      "version": "1.0.0",
+      "author": {
+        "name": "GHP"
+      }
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "name": "dify-dsl",
+  "version": "1.0.0",
+  "description": "Design, generate, review, refactor, and validate Dify Workflow, Chatflow, and RAG Pipeline DSL",
+  "author": {
+    "name": "GHP"
+  }
+}

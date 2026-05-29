@@ -1,0 +1,1203 @@
+kind: app
+version: 0.6.0
+app:
+  mode: advanced-chat
+  name: GHP遥感多智能体系统-线性路由版
+  description: "线性+路由分支: 编排器决定路径→dp→ae→可选循环(rw↔review)"
+  icon: "\U0001F6F0"
+  icon_background: '#E4FBCC'
+  icon_type: emoji
+  use_icon_as_answer_icon: false
+dependencies:
+  - type: marketplace
+    current_identifier: null
+    value:
+      marketplace_plugin_unique_identifier: langgenius/openai_api_compatible:0.0.51@20a0511b3ac00ad81524ff7479b9f5e8bbd456e0590d4931b41c8dd82bee7192
+      version: null
+  - type: marketplace
+    current_identifier: null
+    value:
+      marketplace_plugin_unique_identifier: langgenius/agent:0.0.37@a5dcc6ea00bca23439b49ff7d65704f3f5dd6ce2ca353205e62278e2148d84b6
+      version: null
+workflow:
+  conversation_variables: []
+  environment_variables: []
+  features:
+    file_upload:
+      allowed_file_extensions: [.jpg, .jpeg, .png, .gif, .webp, .svg]
+      allowed_file_types: [image]
+      allowed_file_upload_methods: [local_file, remote_url]
+      enabled: false
+      fileUploadConfig:
+        attachment_image_file_size_limit: 2
+        audio_file_size_limit: 50
+        batch_count_limit: 5
+        file_size_limit: 15
+        file_upload_limit: 20
+        image_file_batch_limit: 10
+        image_file_size_limit: 10
+        single_chunk_attachment_limit: 10
+        video_file_size_limit: 100
+        workflow_file_upload_limit: 10
+      image: { enabled: false, number_limits: 3, transfer_methods: [local_file, remote_url] }
+      number_limits: 3
+    opening_statement: "👋 你好！我是GHP遥感多智能体系统。\n\n我可以帮你完成：\n📡 Landsat数据预处理\n🌡️ 地表温度反演\n🔥 热异常检测\n📊 分析报告生成\n\n请告诉我你的需求。"
+    retriever_resource: { enabled: true }
+    sensitive_word_avoidance: { enabled: false }
+    speech_to_text: { enabled: false }
+    suggested_questions:
+      - 对指定目录下的Landsat数据执行全流程分析并出报告
+      - 检测某区域煤火热异常
+      - 扫描数据目录并分析数据情况
+    suggested_questions_after_answer: { enabled: true }
+    text_to_speech: { enabled: false, language: '', voice: '' }
+  graph:
+    nodes:
+      # ── 1. 用户输入 ──
+      - id: start
+        type: custom
+        data:
+          title: "📥 用户输入"
+          type: start
+          variables: []
+          selected: false
+        height: 101
+        width: 242
+        position: { x: 0, y: 360 }
+        positionAbsolute: { x: 0, y: 360 }
+        sourcePosition: right
+        targetPosition: left
+
+      # ── 2. 知识检索 ──
+      - id: knowledge
+        type: custom
+        data:
+          title: "📚 知识检索"
+          type: knowledge-retrieval
+          selected: false
+          dataset_ids:
+            - 8BV9WG+yCKmvjWCXwhQEJPfGiRZBqcn3QcxoOsdmseo+deF1mI53TKL9nH2Wgmjk
+          query_variable_selector: [start, sys.query]
+          query_attachment_selector: []
+          retrieval_mode: multiple
+          multiple_retrieval_config:
+            reranking_enable: true
+            reranking_mode: reranking_model
+            reranking_model:
+              model: Qwen/Qwen3-Reranker-8B
+              provider: langgenius/openai_api_compatible/openai_api_compatible
+            top_k: 4
+          single_retrieval_config:
+            model:
+              completion_params: { frequency_penalty: 0, max_tokens: 512, presence_penalty: 0, temperature: 0, top_p: 1 }
+              mode: chat
+              name: ds
+              provider: langgenius/openai_api_compatible/openai_api_compatible
+        height: 118
+        width: 242
+        position: { x: 342, y: 360 }
+        positionAbsolute: { x: 342, y: 360 }
+        sourcePosition: right
+        targetPosition: left
+
+      # ── 3. 任务编排 Agent ──
+      - id: agent_orchestrator
+        type: custom
+        data:
+          title: "🎯 任务编排"
+          type: agent
+          selected: false
+          tool_node_version: '2'
+          agent_strategy_label: ReAct
+          agent_strategy_name: ReAct
+          agent_strategy_provider_name: langgenius/agent/agent
+          plugin_unique_identifier: langgenius/agent:0.0.37@a5dcc6ea00bca23439b49ff7d65704f3f5dd6ce2ca353205e62278e2148d84b6
+          meta: { minimum_dify_version: 1.7.0, version: 0.0.2 }
+          output_schema: {}
+          agent_parameters:
+            query:
+              type: constant
+              value: "{{#sys.query#}}"
+            instruction:
+              type: constant
+              value: >-
+                ## 身份
+
+                你是遥感任务编排专家（RSOrchestrator），负责任务规划与路由决策。
+
+                注意：你只负责规划和路由，不执行数据处理、分析或报告撰写。
+
+
+                ## 工具使用规范
+
+                - scene_discovery: 扫描目录发现Landsat场景。规划前必须调用以确认数据存在。
+                  输入: action=discover_scenes, input_dir=目录路径
+                - file_system: 浏览文件和目录结构。用于检查数据完整性。
+                  输入: action=list, directory=路径
+                - artifact_query: 查询已有处理产物，避免重复处理。
+                  输入: action=query, directory=路径
+
+
+                ## 执行流程（Step by Step）
+
+                Step 1: 使用 scene_discovery 扫描用户数据目录，确认数据存在
+                Step 2: 使用 artifact_query 检查是否已有处理产物
+                Step 3: 根据数据现状和用户需求，制定执行计划
+                Step 4: 输出路由标签
+
+
+                ## 输出格式（严格遵守）
+
+                你的输出必须包含以下部分：
+
+                ```
+
+                ## 路由: [direct|analyze_only|pipeline]
+
+                ## 任务计划
+
+                [结构化计划文本]
+
+                ## 执行摘要
+
+                [一句话总结]
+
+                ```
+
+
+                路由说明：
+
+                - direct: 用户只需数据扫描、文件查询或简单问答，你直接回答即可
+                - analyze_only: 需要数据预处理和分析，但不需要生成报告
+                - pipeline: 完整流程（预处理→分析→报告→审查）
+
+
+                ## 信息处理
+
+                - 工具返回超过2000字时，先提取关键信息（场景数量、波段完整性、已有产物）
+                - 仅关注数据是否存在完整，不做技术分析
+
+
+                ## 错误处理
+
+                - 目录不存在 → 直接告知用户，输出 路由: direct
+                - 工具超时 → 重试一次，仍失败则输出 路由: direct
+                - 数据不完整 → 记录缺失项，继续规划可执行部分
+
+
+                ## 完成条件
+
+                输出必须包含：1) 路由标签 2) 任务计划 3) 数据现状摘要
+
+
+                ## 操作记录
+
+                每步输出: Thought → Action → Result
+
+
+                ## 约束
+
+                - 必须先调用工具确认数据存在再制定计划
+                - 用户未指定目录时，输出 路由: direct 并询问路径
+                - 如果已有完整处理产物，建议 路由: analyze_only 或 pipeline 跳过预处理
+
+
+                用户请求: {{#sys.query#}}
+
+                知识参考: {{#knowledge.result#}}
+            model:
+              type: constant
+              value:
+                completion_params: { temperature: 0.1 }
+                mode: chat
+                model: ds
+                model_type: llm
+                provider: langgenius/openai_api_compatible/openai_api_compatible
+                type: model-selector
+            tools:
+              type: constant
+              value:
+                - enabled: true
+                  provider_name: 9133f347-7e06-46d5-869c-7a8ec10260dc
+                  provider_show_name: 遥感工具
+                  tool_name: scene_discovery
+                  tool_label: scene_discovery
+                  tool_description: 扫描目录发现Landsat场景、MTL元数据、波段文件、DEM
+                  type: api
+                  extra: { description: "扫描目录发现Landsat场景、MTL元数据、波段文件、DEM" }
+                  parameters:
+                    action: { auto: 1, value: null }
+                    input_dir: { auto: 1, value: null }
+                  settings: {}
+                - enabled: true
+                  provider_name: 9133f347-7e06-46d5-869c-7a8ec10260dc
+                  provider_show_name: 遥感工具
+                  tool_name: file_system
+                  tool_label: file_system
+                  tool_description: 文件浏览、读取、资产盘点
+                  type: api
+                  extra: { description: "文件浏览、读取、资产盘点" }
+                  parameters:
+                    action: { auto: 1, value: null }
+                    directory: { auto: 1, value: null }
+                    pattern: { auto: 1, value: null }
+                    recursive: { auto: 1, value: null }
+                  settings: {}
+                - enabled: true
+                  provider_name: 9133f347-7e06-46d5-869c-7a8ec10260dc
+                  provider_show_name: 遥感工具
+                  tool_name: artifact_query
+                  tool_label: artifact_query
+                  tool_description: 查询已处理的产出文件记录
+                  type: api
+                  extra: { description: "查询已处理的产出文件记录" }
+                  parameters:
+                    action: { auto: 1, value: null }
+                    directory: { auto: 1, value: null }
+                    keyword: { auto: 1, value: null }
+                  settings: {}
+        height: 232
+        width: 242
+        position: { x: 684, y: 360 }
+        positionAbsolute: { x: 684, y: 360 }
+        sourcePosition: right
+        targetPosition: left
+
+      # ── 4. 路由判断 ──
+      - id: if_route
+        type: custom
+        data:
+          title: "🔀 路由判断"
+          type: if-else
+          cases:
+            - case_id: "direct"
+              logical_operator: and
+              conditions:
+                - variable_selector: [agent_orchestrator, text]
+                  comparison_operator: contains
+                  value: "路由: direct"
+                  varType: string
+        height: 126
+        width: 242
+        position: { x: 1026, y: 200 }
+        positionAbsolute: { x: 1026, y: 200 }
+        sourcePosition: right
+        targetPosition: left
+
+      # ── 5. 直接回答 ──
+      - id: answer_direct
+        type: custom
+        data:
+          title: "📤 直接回答"
+          type: answer
+          answer: "{{#agent_orchestrator.text#}}"
+          variables: []
+          selected: false
+        height: 122
+        width: 242
+        position: { x: 1300, y: 120 }
+        positionAbsolute: { x: 1300, y: 120 }
+        sourcePosition: right
+        targetPosition: left
+
+      # ── 6. 数据处理 Agent ──
+      - id: agent_dp
+        type: custom
+        data:
+          title: "💾 数据处理专家"
+          type: agent
+          selected: false
+          tool_node_version: '2'
+          agent_strategy_label: ReAct
+          agent_strategy_name: ReAct
+          agent_strategy_provider_name: langgenius/agent/agent
+          plugin_unique_identifier: langgenius/agent:0.0.37@a5dcc6ea00bca23439b49ff7d65704f3f5dd6ce2ca353205e62278e2148d84b6
+          meta: { minimum_dify_version: 1.7.0, version: 0.0.2 }
+          output_schema: {}
+          agent_parameters:
+            query:
+              type: constant
+              value: "{{#sys.query#}}"
+            instruction:
+              type: constant
+              value: >-
+                ## 身份
+
+                你是遥感数据处理专家（DataProcessor），负责遥感数据的发现、验证和预处理。
+
+                注意：你只负责数据预处理（辐射定标、大气校正、云掩膜），不负责分析、报告或审查。
+
+
+                ## 工具使用规范
+
+                - pretreatment_workflow: 一键预处理全流程（优先使用）
+                  输入: directory=场景目录
+                - scene_discovery: 发现场景和验证文件完整性
+                - artifact_query: 查询已有产物避免重复处理
+                - radiometric_calibration: 单独辐射定标（DN→TOA辐射率/反射率）
+                - atmospheric_correction: 单独大气校正（Py6S模型）
+                - cloud_mask: 单独云掩膜（QA_PIXEL解码）
+                - file_system: 浏览和验证文件
+
+
+                ## 执行流程（Step by Step）
+
+                Step 1: 使用 artifact_query 检查是否已有预处理产物
+                Step 2: 如已有完整产物 → 直接报告结果；否则使用 pretreatment_workflow 执行预处理
+                Step 3: 如 pretreatment_workflow 不可用 → 按顺序单独调用: radiometric_calibration → atmospheric_correction → cloud_mask
+                Step 4: 输出每个场景的处理状态和产物路径
+
+
+                ## 输出格式
+
+                ```
+
+                ## 数据处理结果
+
+                ### 场景: [场景名]
+                - 预处理状态: 完成/跳过/失败
+                - 产物路径: [列出所有输出文件]
+
+                ### 总结
+                - 处理场景数: X，成功: X，失败: X，跳过: X
+
+                ```
+
+
+                ## 信息处理
+
+                - 工具返回超过2000字时，仅提取处理状态和产物路径
+                - 忽略中间处理日志，只保留最终结果
+
+
+                ## 错误处理
+
+                - 文件不存在 → 跳过该场景，记录缺失项
+                - 处理失败 → 检查输入参数重试一次 → 仍失败标记为失败并继续
+                - MTL缺失 → 无法预处理，明确告知
+
+
+                ## 完成条件
+
+                输出必须包含：1) 每个场景的处理状态 2) 所有产物文件路径 3) 成功/失败统计
+
+
+                ## 操作记录
+
+                每步输出: Thought → Action → Result
+
+
+                ## 约束
+
+                - 处理前必须确认数据文件存在
+                - 优先使用 pretreatment_workflow 批量处理
+                - 不要编造文件路径，只使用工具实际返回的路径
+
+
+                任务计划: {{#agent_orchestrator.text#}}
+
+                用户请求: {{#sys.query#}}
+            model:
+              type: constant
+              value:
+                completion_params: { temperature: 0.1 }
+                mode: chat
+                model: ds
+                model_type: llm
+                provider: langgenius/openai_api_compatible/openai_api_compatible
+                type: model-selector
+            tools:
+              type: constant
+              value:
+                - { enabled: true, provider_name: 9133f347-7e06-46d5-869c-7a8ec10260dc, provider_show_name: 遥感工具, tool_name: scene_discovery, tool_label: scene_discovery, tool_description: "发现Landsat场景、MTL元数据、波段文件", type: api, extra: { description: "发现Landsat场景、MTL元数据、波段文件" }, parameters: { action: { auto: 1, value: null }, input_dir: { auto: 1, value: null } }, settings: {} }
+                - { enabled: true, provider_name: 9133f347-7e06-46d5-869c-7a8ec10260dc, provider_show_name: 遥感工具, tool_name: file_system, tool_label: file_system, tool_description: "文件浏览、读取、资产盘点", type: api, extra: { description: "文件浏览、读取、资产盘点" }, parameters: { action: { auto: 1, value: null }, directory: { auto: 1, value: null }, pattern: { auto: 1, value: null }, recursive: { auto: 1, value: null } }, settings: {} }
+                - { enabled: true, provider_name: 9133f347-7e06-46d5-869c-7a8ec10260dc, provider_show_name: 遥感工具, tool_name: artifact_query, tool_label: artifact_query, tool_description: "查询已处理的产出文件记录", type: api, extra: { description: "查询已处理的产出文件记录" }, parameters: { action: { auto: 1, value: null }, directory: { auto: 1, value: null }, keyword: { auto: 1, value: null } }, settings: {} }
+                - { enabled: true, provider_name: 9133f347-7e06-46d5-869c-7a8ec10260dc, provider_show_name: 遥感工具, tool_name: radiometric_calibration, tool_label: radiometric_calibration, tool_description: "Landsat DN转TOA辐射率/反射率", type: api, extra: { description: "Landsat DN转TOA辐射率/反射率" }, parameters: { band_tif_path: { auto: 1, value: null }, mtl_txt_path: { auto: 1, value: null }, out_dir: { auto: 1, value: null }, outputs: { auto: 1, value: null } }, settings: {} }
+                - { enabled: true, provider_name: 9133f347-7e06-46d5-869c-7a8ec10260dc, provider_show_name: 遥感工具, tool_name: atmospheric_correction, tool_label: atmospheric_correction, tool_description: "Py6S大气校正", type: api, extra: { description: "Py6S大气校正" }, parameters: { in_tif_path: { auto: 1, value: null }, input_type: { auto: 1, value: null }, landsat_mtl_path: { auto: 1, value: null }, out_tif_path: { auto: 1, value: null } }, settings: {} }
+                - { enabled: true, provider_name: 9133f347-7e06-46d5-869c-7a8ec10260dc, provider_show_name: 遥感工具, tool_name: cloud_mask, tool_label: cloud_mask, tool_description: "QA_PIXEL云掩膜", type: api, extra: { description: "QA_PIXEL云掩膜" }, parameters: { out_dir: { auto: 1, value: null }, qa_tif_path: { auto: 1, value: null } }, settings: {} }
+                - { enabled: true, provider_name: 9133f347-7e06-46d5-869c-7a8ec10260dc, provider_show_name: 遥感工具, tool_name: pretreatment_workflow, tool_label: pretreatment_workflow, tool_description: "一键预处理全流程", type: api, extra: { description: "一键预处理全流程" }, parameters: { directory: { auto: 1, value: null }, skip_atmosphere: { auto: 1, value: null }, skip_calibration: { auto: 1, value: null } }, settings: {} }
+        height: 216
+        width: 242
+        position: { x: 1300, y: 360 }
+        positionAbsolute: { x: 1300, y: 360 }
+        sourcePosition: right
+        targetPosition: left
+
+      # ── 7. 分析专家 Agent ──
+      - id: agent_ae
+        type: custom
+        data:
+          title: "🔬 分析专家"
+          type: agent
+          selected: false
+          tool_node_version: '2'
+          agent_strategy_label: ReAct
+          agent_strategy_name: ReAct
+          agent_strategy_provider_name: langgenius/agent/agent
+          plugin_unique_identifier: langgenius/agent:0.0.37@a5dcc6ea00bca23439b49ff7d65704f3f5dd6ce2ca353205e62278e2148d84b6
+          meta: { minimum_dify_version: 1.7.0, version: 0.0.2 }
+          output_schema: {}
+          agent_parameters:
+            query:
+              type: constant
+              value: "{{#sys.query#}}"
+            instruction:
+              type: constant
+              value: >-
+                ## 身份
+
+                你是遥感分析专家（AnalysisExpert），负责LST地表温度反演、热异常检测和时序分析。
+
+                注意：你只负责数据分析，不负责预处理、报告或审查。
+
+
+                ## 工具使用规范
+
+                - thermal_anomaly_workflow: 热异常检测全流程（优先使用）
+                  输入: mode=single|temporal, pretreatment_scene_dir=预处理目录
+                - brightness_temperature: 热红外辐射率→亮温
+                - ndvi: 近红外+红波段→NDVI
+                - emissivity: NDVI→地表比辐射率
+                - lst_split_window: Band10+11→劈窗LST
+                - lst_single_window: Band10→单窗LST（无Band11时使用）
+                - landcover_classification: 多波段→6类土地覆盖
+                - stratified_thermal_anomaly: 分层热异常检测
+                - temporal_thermal_overlap: 多景热异常叠加
+                - terrain_analysis: DEM→坡度/坡向
+                - raster_preview: GeoTIFF→PNG预览图
+
+
+                ## 执行流程（Step by Step）
+
+                Step 1: 确认预处理结果存在且有产物路径
+                Step 2: 优先使用 thermal_anomaly_workflow 一键执行
+                Step 3: 如果不可用，按链路手动执行: 亮温→NDVI→比辐射率→LST→分类→异常检测→叠加
+                Step 4: 使用 raster_preview 生成预览图
+                Step 5: 输出结构化分析统计
+
+
+                ## 输出格式
+
+                ```
+
+                ## 分析结果
+
+                ### LST反演
+                - 算法: 劈窗/单窗
+                - 温度范围: X°C ~ Y°C，平均: Z°C
+
+                ### 热异常检测
+                - 方法: [方法名]
+                - 异常像元数: X，异常面积: X km² (占比 X%)
+
+                ### 时序分析（如适用）
+                - 叠加场景数: X，持续异常: X km²
+
+                ### 产物路径
+                [列出所有输出文件]
+
+                ```
+
+
+                ## 信息处理
+
+                - 中间计算结果仅保留统计摘要
+                - 工具返回超过2000字时提取关键数值（异常数、面积百分比）
+
+
+                ## 错误处理
+
+                - Band11不可用 → 切换到单窗算法
+                - 预处理产物缺失 → 明确指出缺少什么，不要继续
+                - 工具失败 → 检查路径格式重试一次 → 仍失败记录错误
+
+
+                ## 完成条件
+
+                必须输出：1) LST温度统计 2) 异常检测结果 3) 产物路径 4) 预览图路径
+
+
+                ## 操作记录
+
+                每步输出: Thought → Action → Result
+
+
+                ## 约束
+
+                - 定量结论必须基于工具输出，不得编造
+                - 多景数据必须执行时序叠加
+                - 不要重复调用同一工具获取相同信息
+
+
+                数据预处理结果: {{#agent_dp.text#}}
+
+                用户原始请求: {{#sys.query#}}
+            model:
+              type: constant
+              value:
+                completion_params: { temperature: 0.1 }
+                mode: chat
+                model: ds
+                model_type: llm
+                provider: langgenius/openai_api_compatible/openai_api_compatible
+                type: model-selector
+            tools:
+              type: constant
+              value:
+                - { enabled: true, provider_name: 9133f347-7e06-46d5-869c-7a8ec10260dc, provider_show_name: 遥感工具, tool_name: brightness_temperature, tool_label: brightness_temperature, tool_description: "热红外辐射率转亮温", type: api, extra: { description: "热红外辐射率转亮温" }, parameters: { band10_radiance_tif_path: { auto: 1, value: null }, out_band10_tif_path: { auto: 1, value: null } }, settings: {} }
+                - { enabled: true, provider_name: 9133f347-7e06-46d5-869c-7a8ec10260dc, provider_show_name: 遥感工具, tool_name: ndvi, tool_label: ndvi, tool_description: "归一化植被指数", type: api, extra: { description: "归一化植被指数" }, parameters: { band4_reflectance_tif_path: { auto: 1, value: null }, band5_reflectance_tif_path: { auto: 1, value: null }, out_tif_path: { auto: 1, value: null } }, settings: {} }
+                - { enabled: true, provider_name: 9133f347-7e06-46d5-869c-7a8ec10260dc, provider_show_name: 遥感工具, tool_name: emissivity, tool_label: emissivity, tool_description: "地表比辐射率", type: api, extra: { description: "地表比辐射率" }, parameters: { ndvi_tif_path: { auto: 1, value: null }, out_tif_path: { auto: 1, value: null } }, settings: {} }
+                - { enabled: true, provider_name: 9133f347-7e06-46d5-869c-7a8ec10260dc, provider_show_name: 遥感工具, tool_name: lst_split_window, tool_label: lst_split_window, tool_description: "劈窗算法LST", type: api, extra: { description: "劈窗算法LST" }, parameters: { band10_bt_tif_path: { auto: 1, value: null }, band11_bt_tif_path: { auto: 1, value: null }, band4_reflectance_tif_path: { auto: 1, value: null }, band5_reflectance_tif_path: { auto: 1, value: null }, out_tif_path: { auto: 1, value: null } }, settings: {} }
+                - { enabled: true, provider_name: 9133f347-7e06-46d5-869c-7a8ec10260dc, provider_show_name: 遥感工具, tool_name: lst_single_window, tool_label: lst_single_window, tool_description: "单窗算法LST", type: api, extra: { description: "单窗算法LST" }, parameters: { band10_bt_tif_path: { auto: 1, value: null }, band4_reflectance_tif_path: { auto: 1, value: null }, band5_reflectance_tif_path: { auto: 1, value: null }, out_tif_path: { auto: 1, value: null } }, settings: {} }
+                - { enabled: true, provider_name: 9133f347-7e06-46d5-869c-7a8ec10260dc, provider_show_name: 遥感工具, tool_name: landcover_classification, tool_label: landcover_classification, tool_description: "土地覆盖6类分类", type: api, extra: { description: "土地覆盖6类分类" }, parameters: { green_tif_path: { auto: 1, value: null }, nir_tif_path: { auto: 1, value: null }, out_tif_path: { auto: 1, value: null }, red_tif_path: { auto: 1, value: null }, swir1_tif_path: { auto: 1, value: null } }, settings: {} }
+                - { enabled: true, provider_name: 9133f347-7e06-46d5-869c-7a8ec10260dc, provider_show_name: 遥感工具, tool_name: stratified_thermal_anomaly, tool_label: stratified_thermal_anomaly, tool_description: "分层热异常检测", type: api, extra: { description: "分层热异常检测" }, parameters: { dem_path: { auto: 1, value: null }, landcover_tif_path: { auto: 1, value: null }, lst_path: { auto: 1, value: null }, out_path: { auto: 1, value: null }, threshold_k: { auto: 1, value: null }, threshold_method: { auto: 1, value: null } }, settings: {} }
+                - { enabled: true, provider_name: 9133f347-7e06-46d5-869c-7a8ec10260dc, provider_show_name: 遥感工具, tool_name: temporal_thermal_overlap, tool_label: temporal_thermal_overlap, tool_description: "多景热异常叠加", type: api, extra: { description: "多景热异常叠加" }, parameters: { mask_paths: { auto: 1, value: null }, min_overlap_count: { auto: 1, value: null }, out_count_tif_path: { auto: 1, value: null } }, settings: {} }
+                - { enabled: true, provider_name: 9133f347-7e06-46d5-869c-7a8ec10260dc, provider_show_name: 遥感工具, tool_name: terrain_analysis, tool_label: terrain_analysis, tool_description: "DEM坡度坡向", type: api, extra: { description: "DEM坡度坡向" }, parameters: { aspect_path: { auto: 1, value: null }, dem_path: { auto: 1, value: null }, slope_path: { auto: 1, value: null } }, settings: {} }
+                - { enabled: true, provider_name: 9133f347-7e06-46d5-869c-7a8ec10260dc, provider_show_name: 遥感工具, tool_name: raster_preview, tool_label: raster_preview, tool_description: "GeoTIFF转PNG预览", type: api, extra: { description: "GeoTIFF转PNG预览" }, parameters: { input_path: { auto: 1, value: null }, output_path: { auto: 1, value: null } }, settings: {} }
+                - { enabled: true, provider_name: 9133f347-7e06-46d5-869c-7a8ec10260dc, provider_show_name: 遥感工具, tool_name: thermal_anomaly_workflow, tool_label: thermal_anomaly_workflow, tool_description: "热异常检测全流程", type: api, extra: { description: "热异常检测全流程" }, parameters: { mode: { auto: 1, value: null }, pretreatment_scene_dir: { auto: 1, value: null }, pretreatment_scene_dirs: { auto: 1, value: null }, threshold_method: { auto: 1, value: null } }, settings: {} }
+        height: 254
+        width: 242
+        position: { x: 1600, y: 360 }
+        positionAbsolute: { x: 1600, y: 360 }
+        sourcePosition: right
+        targetPosition: left
+
+      # ── 8. 是否需要报告 ──
+      - id: if_need_report
+        type: custom
+        data:
+          title: "🔀 是否需要报告"
+          type: if-else
+          cases:
+            - case_id: "analyze_only"
+              logical_operator: and
+              conditions:
+                - variable_selector: [agent_orchestrator, text]
+                  comparison_operator: contains
+                  value: "路由: analyze_only"
+                  varType: string
+        height: 126
+        width: 242
+        position: { x: 1900, y: 200 }
+        positionAbsolute: { x: 1900, y: 200 }
+        sourcePosition: right
+        targetPosition: left
+
+      # ── 9. 仅分析回答 ──
+      - id: answer_ae
+        type: custom
+        data:
+          title: "📤 分析结果"
+          type: answer
+          answer: "{{#agent_ae.text#}}"
+          variables: []
+          selected: false
+        height: 122
+        width: 242
+        position: { x: 2200, y: 120 }
+        positionAbsolute: { x: 2200, y: 120 }
+        sourcePosition: right
+        targetPosition: left
+
+      # ── 10. 审查循环 Loop ──
+      - id: review_loop
+        type: custom
+        data:
+          title: "🔄 审查循环"
+          type: loop
+          selected: false
+          break_conditions:
+            - variable_selector:
+              - review_loop
+              - is_passed
+              comparison_operator: ">"
+              value: 0
+              varType: number
+          error_handle_mode: terminated
+          height: 800
+          width: 900
+          logical_operator: and
+          loop_count: 3
+          loop_variables:
+            - id: lv_is_passed
+              label: is_passed
+              var_type: number
+              value_type: constant
+              value: 0
+            - id: lv_final_report
+              label: final_report
+              var_type: string
+              value_type: constant
+              value: ""
+            - id: lv_final_review
+              label: final_review
+              var_type: string
+              value_type: constant
+              value: ""
+          start_node_id: review_loop_start
+        height: 800
+        width: 900
+        position: { x: 2200, y: 360 }
+        positionAbsolute: { x: 2200, y: 360 }
+        sourcePosition: right
+        targetPosition: left
+        zIndex: 1
+
+      # ── 10a. 循环起点 ──
+      - id: review_loop_start
+        type: custom-loop-start
+        parentId: review_loop
+        data:
+          title: ""
+          type: loop-start
+          isInLoop: true
+          selected: false
+        draggable: false
+        height: 48
+        width: 44
+        position: { x: 2250, y: 450 }
+        positionAbsolute: { x: 2250, y: 450 }
+        selectable: false
+        sourcePosition: right
+        targetPosition: left
+        zIndex: 1002
+
+      # ── 10b. 报告撰写 Agent ──
+      - id: agent_rw
+        type: custom
+        parentId: review_loop
+        data:
+          title: "📝 报告撰写"
+          type: agent
+          selected: false
+          isInIteration: false
+          isInLoop: true
+          loop_id: review_loop
+          tool_node_version: '2'
+          agent_strategy_label: ReAct
+          agent_strategy_name: ReAct
+          agent_strategy_provider_name: langgenius/agent/agent
+          plugin_unique_identifier: langgenius/agent:0.0.37@a5dcc6ea00bca23439b49ff7d65704f3f5dd6ce2ca353205e62278e2148d84b6
+          meta: { minimum_dify_version: 1.7.0, version: 0.0.2 }
+          output_schema: {}
+          agent_parameters:
+            query:
+              type: constant
+              value: "{{#sys.query#}}"
+            instruction:
+              type: constant
+              value: >-
+                ## 身份
+
+                你是遥感报告撰写专家（ReportWriter），负责将分析结果整合为结构化技术报告。
+
+                注意：你只负责报告撰写和格式转换，不负责数据分析或审查。
+
+
+                ## 工具使用规范
+
+                - coal_fire_report_markdown: 生成结构化Markdown报告
+                  输入: workflow_result=分析数据, title=标题, output_path=路径
+                - markdown_to_docx: Markdown导出为DOCX
+                  输入: input_md_path=MD路径, output_docx_path=DOCX路径, title=标题
+
+
+                ## 执行流程（Step by Step）
+
+                Step 1: 仔细阅读数据处理结果和分析结果，提取关键统计数据
+                Step 2: 如果存在审查意见，逐条回应并修改对应章节
+                Step 3: 按5个章节结构撰写完整报告
+                Step 4: （可选）使用 coal_fire_report_markdown 生成结构化报告
+                Step 5: （可选）使用 markdown_to_docx 导出DOCX
+
+
+                ## 输出格式（必须包含全部5个章节）
+
+                ```
+
+                # [报告标题]
+
+                ## 1. 项目概况
+                目标、数据源、处理流程概述
+
+                ## 2. 数据源与预处理
+                场景列表、预处理方法、质量控制结果
+
+                ## 3. 技术方法
+                LST反演算法及参数、热异常检测方法及阈值
+
+                ## 4. 检测结果与分析
+                LST温度统计表、异常分布（数量/面积/占比）、时序趋势
+
+                ## 5. 结论与建议
+                核心发现（2-3条）、置信度评估、后续建议
+
+                ```
+
+
+                ## 信息处理
+
+                - 仅使用给出的真实数据，不得编造任何数字
+                - 统计数据按"预处理阶段"和"检测阶段"分段展示
+                - 报告聚焦热异常检测结果，而非处理流程
+
+
+                ## 错误处理
+
+                - 报告工具失败 → 直接输出Markdown文本
+                - DOCX导出失败 → 仅输出Markdown，告知用户
+
+
+                ## 完成条件
+
+                必须输出：1) 完整5章节报告 2) 所有数据引用有来源 3) 结论基于分析结果
+
+
+                ## 操作记录
+
+                每步输出: Thought → Action → Result
+
+
+                ## 约束
+
+                - 统计数据必须与分析结果一致，不可编造
+                - 如存在审查意见，必须逐条回应修改
+                - 语言专业简洁，Markdown格式
+
+
+                数据处理结果: {{#agent_dp.text#}}
+
+                分析结果: {{#agent_ae.text#}}
+
+                上一轮审查意见（修改稿请逐条回应）: {{#agent_review.text#}}
+
+                知识参考: {{#knowledge.result#}}
+            model:
+              type: constant
+              value:
+                completion_params: { temperature: 0.7 }
+                mode: chat
+                model: ds
+                model_type: llm
+                provider: langgenius/openai_api_compatible/openai_api_compatible
+                type: model-selector
+            tools:
+              type: constant
+              value:
+                - { enabled: true, provider_name: 9133f347-7e06-46d5-869c-7a8ec10260dc, provider_show_name: 遥感工具, tool_name: markdown_to_docx, tool_label: markdown_to_docx, tool_description: "Markdown导出DOCX", type: api, extra: { description: "Markdown导出DOCX" }, parameters: { input_md_path: { auto: 1, value: null }, output_docx_path: { auto: 1, value: null }, title: { auto: 1, value: null } }, settings: {} }
+                - { enabled: true, provider_name: 9133f347-7e06-46d5-869c-7a8ec10260dc, provider_show_name: 遥感工具, tool_name: coal_fire_report_markdown, tool_label: coal_fire_report_markdown, tool_description: "生成煤火热异常Markdown报告", type: api, extra: { description: "生成煤火热异常Markdown报告" }, parameters: { output_path: { auto: 1, value: null }, title: { auto: 1, value: null }, workflow_result: { auto: 1, value: null } }, settings: {} }
+        height: 232
+        width: 242
+        position: { x: 2350, y: 450 }
+        positionAbsolute: { x: 2350, y: 450 }
+        sourcePosition: right
+        targetPosition: left
+        zIndex: 1002
+
+      # ── 10c. 质量审查 Agent ──
+      - id: agent_review
+        type: custom
+        parentId: review_loop
+        data:
+          title: "✅ 质量审查"
+          type: agent
+          selected: false
+          isInIteration: false
+          isInLoop: true
+          loop_id: review_loop
+          tool_node_version: '2'
+          agent_strategy_label: ReAct
+          agent_strategy_name: ReAct
+          agent_strategy_provider_name: langgenius/agent/agent
+          plugin_unique_identifier: langgenius/agent:0.0.37@a5dcc6ea00bca23439b49ff7d65704f3f5dd6ce2ca353205e62278e2148d84b6
+          meta: { minimum_dify_version: 1.7.0, version: 0.0.2 }
+          output_schema: {}
+          agent_parameters:
+            query:
+              type: constant
+              value: "{{#sys.query#}}"
+            instruction:
+              type: constant
+              value: >-
+                ## 身份
+
+                你是报告质量审查专家（Reviewer），从四个维度审查报告质量。
+
+                注意：你只负责质量审查和反馈，不负责修改报告或重新分析。
+
+
+                ## 工具使用规范
+
+                - file_system: 验证报告中引用的文件是否存在
+                - artifact_query: 查证报告中引用的数据产物是否真实
+
+
+                ## 执行流程（Step by Step）
+
+                Step 1: 通读报告，评估整体结构和完整性
+                Step 2: 使用 artifact_query 抽查报告中引用的关键数据是否存在
+                Step 3: 从四个维度逐项评分
+                Step 4: 输出审查结论
+
+
+                ## 输出格式（严格遵守）
+
+                ```
+
+                ## 审查结果
+
+                ### 总体评价: 通过 / 不通过
+
+                ### 评分
+                - 准确性: X/10
+                - 完整性: X/10
+                - 逻辑性: X/10
+                - 格式规范: X/10
+
+                ### 问题清单
+                1. [问题描述] → 修改建议: [建议]
+
+                ### 结论
+                四项均≥7分且无严重事实错误 → "总体评价: 通过"
+                否则 → "总体评价: 不通过"
+
+                ```
+
+
+                ## 审查维度
+                1. 准确性: 数据引用正确、统计数字与分析结果一致、方法描述准确
+                2. 完整性: 包含全部5个章节、无遗漏关键信息
+                3. 逻辑性: 段落连贯、论点有支撑、结论由数据推导
+                4. 格式规范: Markdown正确、编号一致、表格规范
+
+
+                ## 信息处理
+
+                - 重点比对报告数值与分析结果
+                - 数值不符标记为准确性问题
+                - 忽略排版小问题，聚焦内容质量
+
+
+                ## 错误处理
+
+                - 无法验证某个数据点 → 标记"待验证"而非"错误"
+                - 文件查询失败 → 不影响审查，继续其他维度
+
+
+                ## 完成条件
+
+                必须输出：1) 明确的"通过"或"不通过" 2) 四维评分 3) 具体问题清单
+
+
+                ## 操作记录
+
+                每步输出: Thought → Action → Result
+
+
+                ## 约束
+
+                - 评分基于实际内容，非主观印象
+                - 修改建议必须具体可执行
+                - 质量可接受（均≥7）时应给予通过
+
+
+                请审查以下报告: {{#agent_rw.text#}}
+
+                知识参考: {{#knowledge.result#}}
+            model:
+              type: constant
+              value:
+                completion_params: { temperature: 0.2 }
+                mode: chat
+                model: ds
+                model_type: llm
+                provider: langgenius/openai_api_compatible/openai_api_compatible
+                type: model-selector
+            tools:
+              type: constant
+              value:
+                - { enabled: true, provider_name: 9133f347-7e06-46d5-869c-7a8ec10260dc, provider_show_name: 遥感工具, tool_name: file_system, tool_label: file_system, tool_description: "验证文件存在", type: api, extra: { description: "文件浏览、读取" }, parameters: { action: { auto: 1, value: null }, directory: { auto: 1, value: null }, pattern: { auto: 1, value: null }, recursive: { auto: 1, value: null } }, settings: {} }
+                - { enabled: true, provider_name: 9133f347-7e06-46d5-869c-7a8ec10260dc, provider_show_name: 遥感工具, tool_name: artifact_query, tool_label: artifact_query, tool_description: "查证数据产物", type: api, extra: { description: "查询已有产出" }, parameters: { action: { auto: 1, value: null }, directory: { auto: 1, value: null }, keyword: { auto: 1, value: null } }, settings: {} }
+        height: 216
+        width: 242
+        position: { x: 2650, y: 450 }
+        positionAbsolute: { x: 2650, y: 450 }
+        sourcePosition: right
+        targetPosition: left
+        zIndex: 1002
+
+      # ── 10d. 保存结果 ──
+      - id: assigner_update
+        type: custom
+        parentId: review_loop
+        data:
+          title: "💾 保存结果"
+          type: assigner
+          version: "2"
+          isInIteration: false
+          isInLoop: true
+          loop_id: review_loop
+          items:
+            - variable_selector: [review_loop, final_report]
+              input_type: variable
+              operation: over-write
+              value: [agent_rw, text]
+            - variable_selector: [review_loop, final_review]
+              input_type: variable
+              operation: over-write
+              value: [agent_review, text]
+        height: 154
+        width: 242
+        position: { x: 2650, y: 700 }
+        positionAbsolute: { x: 2650, y: 700 }
+        sourcePosition: right
+        targetPosition: left
+        zIndex: 1002
+
+      # ── 10e. 审查判定 ──
+      - id: if_review
+        type: custom
+        parentId: review_loop
+        data:
+          title: "🔀 审查判定"
+          type: if-else
+          isInIteration: false
+          isInLoop: true
+          loop_id: review_loop
+          cases:
+            - case_id: "review_failed"
+              logical_operator: and
+              conditions:
+                - variable_selector: [agent_review, text]
+                  comparison_operator: contains
+                  value: "总体评价: 不通过"
+                  varType: string
+        height: 152
+        width: 242
+        position: { x: 2650, y: 900 }
+        positionAbsolute: { x: 2650, y: 900 }
+        sourcePosition: right
+        targetPosition: left
+        zIndex: 1002
+
+      # ── 10f. 标记通过 ──
+      - id: assigner_pass
+        type: custom
+        parentId: review_loop
+        data:
+          title: "✅ 标记通过"
+          type: assigner
+          version: "2"
+          isInIteration: false
+          isInLoop: true
+          loop_id: review_loop
+          items:
+            - variable_selector: [review_loop, is_passed]
+              input_type: constant
+              operation: +=
+              value: 1
+        height: 128
+        width: 242
+        position: { x: 2900, y: 900 }
+        positionAbsolute: { x: 2900, y: 900 }
+        sourcePosition: right
+        targetPosition: left
+        zIndex: 1002
+
+      # ── 10g. 循环终点 ──
+      - id: review_loop_end
+        type: custom-simple
+        parentId: review_loop
+        data:
+          title: "退出循环"
+          type: loop-end
+          isInIteration: false
+          isInLoop: true
+          loop_id: review_loop
+          selected: false
+        height: 52
+        width: 242
+        position: { x: 2900, y: 700 }
+        positionAbsolute: { x: 2900, y: 700 }
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        zIndex: 1002
+
+      # ── 11. 完整回答 ──
+      - id: answer_full
+        type: custom
+        data:
+          title: "📤 完整回答"
+          type: answer
+          answer: "{{#review_loop.final_report#}}\n\n---\n\n**📋 质量审查报告**\n\n{{#review_loop.final_review#}}"
+          variables: []
+          selected: false
+        height: 122
+        width: 242
+        position: { x: 3200, y: 500 }
+        positionAbsolute: { x: 3200, y: 500 }
+        sourcePosition: right
+        targetPosition: left
+
+    # ── 边 ──
+    edges:
+      - id: start-to-knowledge
+        source: start
+        sourceHandle: source
+        target: knowledge
+        targetHandle: target
+        type: custom
+        data: { isInLoop: false, sourceType: start, targetType: knowledge-retrieval }
+        zIndex: 0
+
+      - id: knowledge-to-orchestrator
+        source: knowledge
+        sourceHandle: source
+        target: agent_orchestrator
+        targetHandle: target
+        type: custom
+        data: { isInLoop: false, sourceType: knowledge-retrieval, targetType: agent }
+        zIndex: 0
+
+      - id: orchestrator-to-if-route
+        source: agent_orchestrator
+        sourceHandle: source
+        target: if_route
+        targetHandle: target
+        type: custom
+        data: { isInLoop: false, sourceType: agent, targetType: if-else }
+        zIndex: 0
+
+      - id: if-route-to-answer-direct
+        source: if_route
+        sourceHandle: "direct"
+        target: answer_direct
+        targetHandle: target
+        type: custom
+        data: { isInLoop: false, sourceType: if-else, targetType: answer }
+        zIndex: 0
+
+      - id: if-route-to-dp
+        source: if_route
+        sourceHandle: "false"
+        target: agent_dp
+        targetHandle: target
+        type: custom
+        data: { isInLoop: false, sourceType: if-else, targetType: agent }
+        zIndex: 0
+
+      - id: dp-to-ae
+        source: agent_dp
+        sourceHandle: source
+        target: agent_ae
+        targetHandle: target
+        type: custom
+        data: { isInLoop: false, sourceType: agent, targetType: agent }
+        zIndex: 0
+
+      - id: ae-to-if-report
+        source: agent_ae
+        sourceHandle: source
+        target: if_need_report
+        targetHandle: target
+        type: custom
+        data: { isInLoop: false, sourceType: agent, targetType: if-else }
+        zIndex: 0
+
+      - id: if-report-to-answer-ae
+        source: if_need_report
+        sourceHandle: "analyze_only"
+        target: answer_ae
+        targetHandle: target
+        type: custom
+        data: { isInLoop: false, sourceType: if-else, targetType: answer }
+        zIndex: 0
+
+      - id: if-report-to-loop
+        source: if_need_report
+        sourceHandle: "false"
+        target: review_loop
+        targetHandle: target
+        type: custom
+        data: { isInLoop: false, sourceType: if-else, targetType: loop }
+        zIndex: 0
+
+      - id: loop-to-answer-full
+        source: review_loop
+        sourceHandle: source
+        target: answer_full
+        targetHandle: target
+        type: custom
+        data: { isInLoop: false, sourceType: loop, targetType: answer }
+        zIndex: 0
+
+      # ── Loop 内部边 ──
+      - id: loop-start-to-rw
+        source: review_loop_start
+        sourceHandle: source
+        target: agent_rw
+        targetHandle: target
+        type: custom
+        data: { isInIteration: false, isInLoop: true, loop_id: review_loop, sourceType: loop-start, targetType: agent }
+        zIndex: 1002
+
+      - id: rw-to-review
+        source: agent_rw
+        sourceHandle: source
+        target: agent_review
+        targetHandle: target
+        type: custom
+        data: { isInIteration: false, isInLoop: true, loop_id: review_loop, sourceType: agent, targetType: agent }
+        zIndex: 1002
+
+      - id: review-to-assigner
+        source: agent_review
+        sourceHandle: source
+        target: assigner_update
+        targetHandle: target
+        type: custom
+        data: { isInIteration: false, isInLoop: true, loop_id: review_loop, sourceType: agent, targetType: assigner }
+        zIndex: 1002
+
+      - id: assigner-to-ifreview
+        source: assigner_update
+        sourceHandle: source
+        target: if_review
+        targetHandle: target
+        type: custom
+        data: { isInIteration: false, isInLoop: true, loop_id: review_loop, sourceType: assigner, targetType: if-else }
+        zIndex: 1002
+
+      - id: ifreview-failed-to-loopend
+        source: if_review
+        sourceHandle: "review_failed"
+        target: review_loop_end
+        targetHandle: target
+        type: custom
+        data: { isInIteration: false, isInLoop: true, loop_id: review_loop, sourceType: if-else, targetType: loop-end }
+        zIndex: 1002
+
+      - id: ifreview-pass-to-assigner
+        source: if_review
+        sourceHandle: "false"
+        target: assigner_pass
+        targetHandle: target
+        type: custom
+        data: { isInIteration: false, isInLoop: true, loop_id: review_loop, sourceType: if-else, targetType: assigner }
+        zIndex: 1002
+
+      - id: assigner-pass-to-loopend
+        source: assigner_pass
+        sourceHandle: source
+        target: review_loop_end
+        targetHandle: target
+        type: custom
+        data: { isInIteration: false, isInLoop: true, loop_id: review_loop, sourceType: assigner, targetType: loop-end }
+        zIndex: 1002
+
+    viewport:
+      x: 300
+      y: 100
+      zoom: 0.4
+  rag_pipeline_variables: []
