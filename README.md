@@ -52,7 +52,7 @@ dify-dsl-skill/
 In Claude Code CLI or VSCode extension, run:
 
 ```
-/plugin marketplace add 1094184321/dify-dsl-marketplace
+/plugin marketplace add 1094184321/GHP
 ```
 
 Then:
@@ -66,7 +66,7 @@ Then:
 1. Clone this repository:
 
 ```bash
-git clone https://github.com/1094184321/dify-dsl-marketplace.git
+git clone https://github.com/1094184321/GHP.git
 ```
 
 2. Copy the plugin to Claude Code's cache:
