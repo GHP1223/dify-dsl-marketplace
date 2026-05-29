@@ -77,10 +77,18 @@
 
 ```yaml
 data:
-  title: Variable Aggregator
+  desc: ''
+  output_type: string              # string, array[string], array[object] 等
+  selected: false
+  title: 变量聚合器
   type: variable-aggregator
-  output_type: array[string]
   variables:
-    - [llm_1, text]
-    - [llm_2, text]
+    - - <node_id_1>
+      - text
+    - - <node_id_2>
+      - text
 ```
+
+`variables` 是变量选择器数组的二维数组。每个内层元素是 `[node_id, field_name]` 格式。
+
+通过 `{{#聚合器节点id.output#}}` 获取聚合后的输出值。语义：按 variables 顺序取第一个非空值。

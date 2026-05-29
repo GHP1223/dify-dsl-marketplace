@@ -17,22 +17,111 @@
 
 ```yaml
 app:
-  description: ""
+  description: ''
   icon: "🤖"
-  icon_background: "#FFEAD5"
-  mode: workflow | advanced-chat
+  icon_background: '#FFEAD5'
+  mode: workflow           # or advanced-chat, agent-chat
   name: your_app_name
   use_icon_as_answer_icon: false
-dependencies: []
+dependencies: []            # see "依赖声明" section below
 kind: app
-version: 0.6.0
+version: 0.3.0              # current Dify export version; also seen: 0.1.2, 0.1.5
 workflow:
-  conversation_variables: []
-  environment_variables: []
-  features: {}
+  conversation_variables: []    # see "对话变量" section
+  environment_variables: []     # see "环境变量" section
+  features:                     # see "features 块" section
+    file_upload:
+      allowed_file_extensions: []
+      allowed_file_types: []
+      allowed_file_upload_methods: []
+      enabled: false
+      fileUploadConfig:
+        audio_file_size_limit: 50
+        batch_count_limit: 5
+        file_size_limit: 15
+        image_file_size_limit: 10
+        video_file_size_limit: 100
+        workflow_file_upload_limit: 10
+      image:
+        enabled: false
+        number_limits: 3
+        transfer_methods: []
+      number_limits: 3
+    opening_statement: ''
+    retriever_resource:
+      enabled: true
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: false
+    suggested_questions: []
+    suggested_questions_after_answer:
+      enabled: false
+    text_to_speech:
+      enabled: false
+      language: ''
+      voice: ''
   graph:
     nodes: []
     edges: []
+    viewport:               # 画布视口，导入时保持布局
+      x: 0
+      y: 0
+      zoom: 1
+```
+
+### 对话变量 (conversation_variables)
+
+仅在 `advanced-chat` 模式下有效。用于跨多轮对话持久化状态。
+
+```yaml
+conversation_variables:
+  - description: ''
+    id: <uuid>
+    name: <variable_name>
+    selector:
+      - conversation
+      - <variable_name>
+    value: ''               # 默认值
+    value_type: string      # string, number, object, array[string]
+```
+
+在模板中的引用: `{{#conversation.<variable_name>#}}`
+
+### 环境变量 (environment_variables)
+
+用于存储密钥、API key 等不应硬编码在 DSL 中的变量。
+
+```yaml
+environment_variables:
+  - description: ''
+    id: <uuid>
+    name: <variable_name>
+    selector:
+      - env
+      - <variable_name>
+    value: <secret_value>   # 导入后需手动填写
+    value_type: string
+```
+
+在模板中的引用: `{{#env.<variable_name>#}}`
+
+### 依赖声明 (dependencies)
+
+声明应用依赖的 marketplace 插件或 package。
+
+```yaml
+dependencies:
+  # marketplace 插件
+  - current_identifier: null
+    type: marketplace
+    value:
+      marketplace_plugin_unique_identifier: <provider/plugin:version@hash>
+  # package 插件
+  - current_identifier: null
+    type: package
+    value:
+      plugin_unique_identifier: <provider/plugin:version@hash>
 ```
 
 ### RAG Pipeline DSL
@@ -70,45 +159,86 @@ workflow:
 
 ## 节点外层包装
 
-运行时核心关注:
+每个节点在 `graph.nodes[]` 中的完整外层结构:
 
-- `id`
-- `data`
+```yaml
+- data:
+    # 节点类型特定字段在这里
+    desc: ''
+    selected: false
+    title: <节点标题>
+    type: <节点类型>
+    variables: []         # 大多节点有此字段
+  height: <number>        # 典型值: start 88, llm 96, answer 103, tool 52, standard 88
+  id: '<node_id>'         # 字符串，通常是时间戳或标签
+  position:
+    x: <number>
+    y: <number>
+  positionAbsolute:
+    x: <number>
+    y: <number>
+  selected: false
+  sourcePosition: right
+  targetPosition: left
+  type: custom            # 普通节点固定 custom；特殊: custom-iteration-start, custom-note
+  width: <number>         # 典型值: 243, 244; iteration 容器 688-996
+```
 
-fixture 或编辑器里常见，但不应默认抬成硬约束的字段:
+**特殊容器/迭代内节点额外字段:**
 
-- `type`
-- `position.x`
-- `position.y`
-- `width`
-- `height`
-- `positionAbsolute`
-- `selected`
-- `sourcePosition`
-- `targetPosition`
-- `parentId`
-- `zIndex`
+```yaml
+  parentId: '<container_node_id>'    # 当节点在 iteration/loop 内部时
+  zIndex: 1002                       # iteration 内部节点
+  draggable: false                    # iteration-start 节点
+  selectable: false                   # iteration-start 节点
+```
 
-新建 DSL 时可以保留导入和阅读需要的包装字段，但不要把这些编辑器字段误当成源码运行时硬要求。
+**节点 `data` 中常见的公共字段:**
+
+| 字段 | 说明 | 典型值 |
+|------|------|--------|
+| `desc` | 节点描述 | `''` |
+| `selected` | 选中状态 | `false` |
+| `title` | 节点标题 | 各节点不同 |
+| `type` | 节点类型标识 | 见各节点文档 |
+| `variables` | 输入变量映射 | `[]` 或数组 |
+
+**当节点在 iteration 内部时，`data` 需额外包含:**
+
+```yaml
+    isInIteration: true
+    iteration_id: '<container_node_id>'
+```
 
 ## 边结构
 
-运行时核心关注:
+每条边在 `graph.edges[]` 中的完整结构:
 
-- `source`
-- `sourceHandle`
-- `target`
+```yaml
+- data:
+    isInIteration: false       # true 时需同时写 iteration_id
+    isInLoop: false
+    sourceType: <source_node_type>
+    targetType: <target_node_type>
+  id: <source_id>-source-<target_id>-target    # 命名惯例
+  source: '<source_node_id>'
+  sourceHandle: source         # if-else 用 'true'/'false'/case_id; question-classifier 用 class_id
+  target: '<target_node_id>'
+  targetHandle: target
+  type: custom
+  zIndex: 0                    # iteration 内为 1002
+```
 
-编辑器或样例里常见的字段:
+**迭代内部边额外字段:**
 
-- `id`
-- `targetHandle`
-- `data.sourceType`
-- `data.targetType`
-- `isInLoop`
-- `isInIteration`
-
-其中 `targetHandle` 更偏编辑器兼容字段；当前后端构图并不依赖它。
+```yaml
+  data:
+    isInIteration: true
+    iteration_id: '<container_node_id>'
+    isInLoop: false
+    sourceType: <source_node_type>
+    targetType: <target_node_type>
+```
 
 ## 生成原则
 
@@ -134,12 +264,14 @@ fixture 或编辑器里常见，但不应默认抬成硬约束的字段:
 
 不同导出形态并不总是完全一致，常见差异:
 
+- `version` 字段: 当前 Dify 导出版本一般为 `0.3.0`。旧版 `0.1.2`、`0.1.5` 仍可导入。新生成 DSL 优先用 `0.3.0`。
 - `retry_config` 常见 `enabled` 与 `retry_enabled` 两种写法。
-- `tool_parameters`、`datasource_parameters` 有时会出现简写字符串写法，也有对象写法。
+- `tool_parameters`、`datasource_parameters` 有时会出现简写字符串写法，也有对象写法。新生成优先使用显式 `{ type: ..., value: ... }` 对象形式。
 - 节点 `data` 允许 `extra=allow`，所以导出 DSL 常混入历史字段。
-- 本地很多 app fixture 仍使用历史 `0.3.1` 形态，而当前 app DSL 导出版本已是 `0.6.0`。
+- `provider` 字符串有两种格式: 简单格式 `openai`、`siliconflow`；全限定格式 `langgenius/siliconflow/siliconflow`。生成 DSL 时根据实际情况选用。
 
 结论:
 
 - 新生成 DSL 优先写稳定、清晰的字段结构。
-- 如果要模仿现有导出样例，必须在报告里标记为“兼容写法”。
+- 如果生成与现有 DSL 不同版本的格式，必须在报告里标记版本差异。
+- 所有节点 `data` 中必须包含 `desc: ''`、`selected: false`、`variables: []`（当节点需要输入变量映射时）。

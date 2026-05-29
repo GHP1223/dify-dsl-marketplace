@@ -72,18 +72,133 @@
 ## 编排约束
 
 - `agent_parameters` 至少要与所选策略需要的参数名匹配。
-- 若参数中引用工具选择器或变量选择器，要保证上游已定义。
-- 与 `tool` 节点不同，`agent` 更像“策略执行器”而不是单次工具调用。
+- 每个参数值格式为 `{ type: constant, value: ... }`，`type` 通常是 `constant`。
+- `agent_parameters.model.value` 是 model-selector 对象，含 `provider`、`model`、`mode`、`model_type`、`completion_params`、`type`。
+- `agent_parameters.tools.value` 是工具列表，每个工具有 `enabled`、`provider_name`、`tool_name`、`tool_label`、`schemas`、`parameters` 等。
+- `plugin_unique_identifier` 必须与 agent 插件版本精确匹配。
+- 与 `tool` 节点不同，`agent` 更像”策略执行器”而不是单次工具调用。
+
+## 节点完整结构
+
+```yaml
+- data:
+    agent_parameters:
+      instruction:
+        type: constant
+        value: '请根据用户输入{{#sys.query#}}和知识库{{#knowledge_node.result#}}完成分析任务'
+      maximum_iterations:                                  # 可选
+        type: constant
+        value: 5
+      model:
+        type: constant
+        value:
+          completion_params: {}
+          mode: chat
+          model: gpt-4o
+          model_type: llm
+          provider: langgenius/openai/openai
+          type: model-selector
+      query:
+        type: constant
+        value: '{{#sys.query#}}'
+      tools:
+        type: constant
+        value:
+          - enabled: true
+            extra:
+              description: ''
+            parameters:
+              <param_name>:
+                auto: 1
+                value: null
+            provider_name: <provider_name>
+            schemas:
+              - auto_generate: null
+                default: null
+                form: llm
+                human_description:
+                  en_US: <desc>
+                  zh_Hans: <desc>
+                label:
+                  en_US: <label>
+                  zh_Hans: <label>
+                llm_description: <desc>
+                max: null
+                min: null
+                name: <param_name>
+                options: []
+                placeholder: null
+                precision: null
+                required: true
+                scope: null
+                template: null
+                type: string
+            settings: {}
+            tool_description: ''
+            tool_label: <Tool Label>
+            tool_name: <tool_name>
+            type: builtin
+    agent_strategy_label: ReAct
+    agent_strategy_name: ReAct
+    agent_strategy_provider_name: langgenius/agent/agent
+    desc: ''
+    output_schema: null
+    plugin_unique_identifier: langgenius/agent:0.0.14@<hash>
+    selected: false
+    title: Agent
+    type: agent
+  height: 96
+  id: agent
+  position:
+    x: 400
+    y: 282
+  positionAbsolute:
+    x: 400
+    y: 282
+  selected: false
+  sourcePosition: right
+  targetPosition: left
+  type: custom
+  width: 244
+```
 
 ## 最小骨架
 
 ```yaml
 data:
+  agent_parameters:
+    instruction:
+      type: constant
+      value: '你是助手'
+    model:
+      type: constant
+      value:
+        completion_params: {}
+        mode: chat
+        model: gpt-4o-mini
+        model_type: llm
+        provider: openai
+        type: model-selector
+    query:
+      type: constant
+      value: '{{#sys.query#}}'
+    tools:
+      type: constant
+      value: []
+  agent_strategy_label: ReAct
+  agent_strategy_name: ReAct
+  agent_strategy_provider_name: langgenius/agent/agent
+  desc: ''
+  output_schema: null
+  plugin_unique_identifier: langgenius/agent:0.0.14@<hash>
+  selected: false
   title: Agent
   type: agent
-  tool_node_version: "2"
-  agent_strategy_provider_name: builtin
-  agent_strategy_name: react
-  agent_strategy_label: ReAct
-  agent_parameters: {}
 ```
+
+支持的 agent 策略:
+| agent_strategy_name | agent_strategy_label | agent_strategy_provider_name |
+|---|---|---|
+| `ReAct` | ReAct | `langgenius/agent/agent` |
+| `function_calling` | FunctionCalling | `langgenius/agent/agent` |
+| `mcp_agent` | MCP Agent | `hjlarry/agent/mcp_agent` |

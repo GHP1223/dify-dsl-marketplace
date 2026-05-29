@@ -80,17 +80,28 @@
 
 ```yaml
 data:
-  title: Question Classifier
-  type: question-classifier
-  query_variable_selector: [sys, query]
-  model:
-    provider: openai
-    name: gpt-4o-mini
-    mode: chat
-    completion_params: {}
   classes:
-    - id: sales
-      name: 销售
-    - id: support
-      name: 客服
+    - id: '1'
+      name: 销售咨询
+    - id: '2'
+      name: 技术支持
+  desc: ''
+  instructions: ''
+  model:
+    completion_params:
+      temperature: 0.7
+    mode: chat
+    name: gpt-4o-mini
+    provider: openai
+  query_variable_selector:
+    - sys
+    - query
+  selected: false
+  title: 问题分类器
+  topics: []
+  type: question-classifier
+  vision:
+    enabled: false
 ```
+
+边的 `sourceHandle` 使用 `classes[*].id` 值（如 `'1'`、`'2'` 或 uuid 字符串）。

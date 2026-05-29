@@ -73,7 +73,12 @@
 
 ```yaml
 data:
-  title: Answer
+  answer: '{{#llm.text#}}'
+  desc: ''
+  selected: false
+  title: 输出
   type: answer
-  answer: "{{#llm.text#}}"
+  variables: []
 ```
+
+在 `advanced-chat` 中，`answer` 是终点，模板中引用的 `{{#node_id.field#}}` 必须是上游真实产生的字段。

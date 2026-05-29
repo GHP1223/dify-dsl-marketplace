@@ -83,10 +83,16 @@
 
 ```yaml
 data:
-  title: End
-  type: end
+  desc: ''
   outputs:
-    - variable: result
-      value_type: string
-      value_selector: [llm, text]
+    - value_selector:
+        - <source_node_id>
+        - <source_field>
+      variable: <output_name>
+      value_type: string             # 强烈推荐显式声明
+  selected: false
+  title: 结束
+  type: end
 ```
+
+`outputs` 中每项的 `value_selector` 是二元素数组 `[node_id, field_name]`，`variable` 是对外暴露的输出字段名。仅在 `workflow` 模式下存在（`advanced-chat` 用 `answer` 替代）。

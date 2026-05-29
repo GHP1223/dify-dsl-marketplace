@@ -87,14 +87,53 @@
 
 ```yaml
 data:
-  title: IF/ELSE
-  type: if-else
   cases:
-    - case_id: "true"
-      logical_operator: and
+    - case_id: 'true'
       conditions:
-        - variable_selector: [start, switch]
-          comparison_operator: "="
-          value: "1"
+        - comparison_operator: contains       # is, not empty, empty, =, >, <, contains, start with, end with, in, not in, ...
+          id: <uuid>
+          value: '1'
+          varType: string                     # string, number
+          variable_selector:
+            - <source_node_id>
+            - <source_field>
+      id: 'true'
+      logical_operator: or                    # and 或 or
+  desc: ''
+  selected: false
+  title: 条件分支
+  type: if-else
+```
+
+边的 `sourceHandle` 与 `case_id` 对应:
+- `case_id: 'true'` → 边 `sourceHandle: 'true'`
+- `case_id: 'false'` → 边 `sourceHandle: 'false'` (隐式默认分支)
+- 自定义 `case_id: '<uuid>'` → 边 `sourceHandle: '<uuid>'`
+
+多条件分支示例:
+```yaml
+data:
+  cases:
+    - case_id: 'true'
+      conditions:
+        - comparison_operator: '='
+          id: <uuid>
+          value: '1'
           varType: number
+          variable_selector: [start, type]
+      id: 'true'
+      logical_operator: and
+    - case_id: '<uuid>'
+      conditions:
+        - comparison_operator: '='
+          id: <uuid>
+          value: '2'
+          varType: number
+          variable_selector: [start, type]
+      id: '<uuid>'
+      logical_operator: and
+  desc: ''
+  selected: false
+  title: 条件分支
+  type: if-else
 ```

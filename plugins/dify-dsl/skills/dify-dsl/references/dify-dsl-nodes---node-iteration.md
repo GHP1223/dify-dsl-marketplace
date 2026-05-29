@@ -86,18 +86,119 @@
 - `start_node_id` 必须指向容器内真实存在的 `iteration-start` 节点。
 - `iterator_selector` 必须引用数组。
 - `output_selector` 必须指向容器内某个可输出节点。
-- 常见 `output_type`，虽然不一定是硬校验字段，但建议显式写，减少导入差异。
-- 容器内节点通常带 `parentId` 指向 iteration 容器。
+- `output_type` 必须显式声明，如 `array[string]`、`array[object]`。
+- 容器内节点 `data` 中必须含 `isInIteration: true` 和 `iteration_id`。
+- 容器内节点外层必须含 `parentId` 指向 iteration 容器 `id`，`zIndex: 1002`。
+- iteration-start 节点外层 `type: custom-iteration-start`（非 `custom`）、`draggable: false`、`selectable: false`。
+
+## 容器完整结构
+
+```yaml
+# === 迭代容器节点 ===
+- data:
+    desc: ''
+    error_handle_mode: terminated             # terminated, continue-on-error, remove-abnormal-output
+    height: 285
+    is_parallel: false
+    iterator_selector:
+      - <source_node_id>
+      - <source_field>
+    output_selector:
+      - <child_llm_node_id>
+      - text
+    output_type: array[string]
+    parallel_nums: 10
+    selected: false
+    start_node_id: <iteration_start_node_id>
+    title: 迭代
+    type: iteration
+    width: 688                               # 迭代容器比普通节点宽
+  height: 285
+  id: '<iteration_id>'
+  position:
+    x: 400
+    y: 282
+  positionAbsolute:
+    x: 400
+    y: 282
+  selected: false
+  sourcePosition: right
+  targetPosition: left
+  type: custom
+  width: 688
+  zIndex: 1
+
+# === 迭代内部起点节点 ===
+- data:
+    desc: ''
+    isInIteration: true
+    selected: false
+    title: ''
+    type: iteration-start
+  draggable: false
+  height: 48
+  id: '<iteration_start_node_id>'
+  parentId: '<iteration_id>'
+  position:
+    x: 24
+    y: 68
+  positionAbsolute: ...
+  selectable: false
+  sourcePosition: right
+  targetPosition: left
+  type: custom-iteration-start
+  width: 44
+  zIndex: 1002
+
+# === 迭代内普通节点 (如 LLM) ===
+- data:
+    desc: ''
+    isInIteration: true
+    iteration_id: '<iteration_id>'
+    model:
+      completion_params:
+        temperature: 0.7
+      mode: chat
+      name: gpt-4o-mini
+      provider: openai
+    prompt_template:
+      - id: <uuid>
+        role: system
+        text: '处理: {{#<iteration_start_node_id>.item#}}'
+    selected: false
+    title: 内部LLM
+    type: llm
+    variables: []
+    vision:
+      enabled: false
+  height: 96
+  id: '<child_llm_node_id>'
+  parentId: '<iteration_id>'
+  position:
+    x: 80
+    y: 60
+  positionAbsolute: ...
+  selected: false
+  sourcePosition: right
+  targetPosition: left
+  type: custom
+  width: 244
+  zIndex: 1002
+```
 
 ## 最小骨架
 
 ```yaml
 data:
-  title: Iteration
-  type: iteration
+  desc: ''
+  error_handle_mode: terminated
+  is_parallel: false
   iterator_selector: [code, result]
   output_selector: [code_in_iter, result]
-  start_node_id: iter_start
-  is_parallel: false
+  output_type: array[string]
   parallel_nums: 10
+  selected: false
+  start_node_id: iter_start
+  title: 迭代
+  type: iteration
 ```

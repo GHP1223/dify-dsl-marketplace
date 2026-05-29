@@ -74,27 +74,100 @@
 - 任意 `trigger-*`
 - `datasource`
 
-## 兼容性提醒
+## tool_parameters 结构
 
-- `tool_parameters.<name> = { type, value }` 是更清晰的结构。
-- 也可能直接写成 `tool_parameters.json_string: "{{#http.body#}}"` 这种简写。
-- 生成新 DSL 时优先显式对象写法；如果跟随旧样例，报告里标记为兼容写法。
-
-## 最小骨架
+`tool_parameters` 中每个参数的值为对象格式:
 
 ```yaml
-data:
-  title: Tool
-  type: tool
-  tool_node_version: "2"
-  provider_id: builtin
-  provider_type: builtin
-  provider_name: Builtin Tools
-  tool_name: json_parse
-  tool_label: JSON Parse
-  tool_configurations: {}
-  tool_parameters:
-    json_string:
-      type: mixed
-      value: "{{#http_node.body#}}"
+tool_parameters:
+  <param_name>:
+    type: mixed         # mixed: 模板引用; variable: 变量选择器引用; constant: 常量
+    value: <value>      # mixed 时为模板字符串; variable 时为 [node_id, field]; constant 时为字面值
+```
+
+## paramSchemas 结构
+
+`paramSchemas` 描述每个工具参数的 schema（通常从插件定义自动导入）:
+
+```yaml
+paramSchemas:
+  - auto_generate: null
+    default: null
+    form: llm                               # llm 或 form
+    human_description:
+      en_US: <description>
+      zh_Hans: <中文描述>
+    label:
+      en_US: <Label>
+      zh_Hans: <中文标签>
+    llm_description: <description for LLM>
+    max: null
+    min: null
+    name: <parameter_name>
+    options: []                             # select 类型时: [{label: {zh_Hans:..., en_US:...}, value: ...}]
+    placeholder: null
+    precision: null
+    required: true
+    scope: null
+    template: null
+    type: string                            # string, number, file, secret-input, select, model-selector
+```
+
+## 节点完整结构
+
+```yaml
+- data:
+    desc: ''
+    is_team_authorization: true
+    output_schema: null
+    paramSchemas:
+      - auto_generate: null
+        default: null
+        form: llm
+        human_description:
+          en_US: Input text to process
+          zh_Hans: 待处理的输入文本
+        label:
+          en_US: Input Text
+          zh_Hans: 输入文本
+        llm_description: The text input to be processed
+        max: null
+        min: null
+        name: text
+        options: []
+        placeholder: null
+        precision: null
+        required: true
+        scope: null
+        template: null
+        type: string
+    params:
+      text: ''
+    provider_id: <provider_id>
+    provider_name: <provider_name>
+    provider_type: builtin                   # builtin 或 api
+    selected: false
+    title: Tool
+    tool_configurations: {}
+    tool_description: <tool description>
+    tool_label: <Tool Display Name>
+    tool_name: <tool_function_name>
+    tool_parameters:
+      text:
+        type: mixed
+        value: '{{#source_node.text#}}'
+    type: tool
+  height: 52
+  id: tool_1
+  position:
+    x: 400
+    y: 282
+  positionAbsolute:
+    x: 400
+    y: 282
+  selected: false
+  sourcePosition: right
+  targetPosition: left
+  type: custom
+  width: 244
 ```

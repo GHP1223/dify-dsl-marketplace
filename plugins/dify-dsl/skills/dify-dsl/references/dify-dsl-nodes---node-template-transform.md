@@ -76,10 +76,20 @@
 
 ```yaml
 data:
-  title: Template Transform
+  desc: ''
+  selected: false
+  template: '{{ arg1 }}的结果是：{{ arg2 }}'
+  title: 模板转换
   type: template-transform
   variables:
-    - variable: text
-      value_selector: [llm, text]
-  template: "结果：{{ text }}"
+    - value_selector:
+        - <node_id_1>
+        - text
+      variable: arg1
+    - value_selector:
+        - <node_id_2>
+        - result
+      variable: arg2
 ```
+
+输出通过 `{{#模板转换节点id.output#}}` 引用。模板支持 Jinja2 过滤器和语法，如 `{{ arg1 | join("\n") }}`。

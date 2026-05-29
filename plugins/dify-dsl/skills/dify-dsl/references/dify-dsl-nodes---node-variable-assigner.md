@@ -132,12 +132,22 @@
 
 ```yaml
 data:
-  title: Variable Assigner
-  type: assigner
-  version: "2"
+  desc: ''
   items:
-    - variable_selector: [conversation, answer]
-      input_type: variable
-      operation: over-write
-      value: [sys, query]
+    - input_type: variable                # variable 或 constant
+      operation: over-write               # over-write, clear, append, extend, set, +=, -=, *=, /=, remove-first, remove-last
+      value:
+        - <source_node_id>
+        - <source_field>
+      variable_selector:
+        - conversation                     # conversation 或 env 或 loop 变量域
+        - <variable_name>
+      write_mode: over-write              # 与 operation 保持一致
+  selected: false
+  title: 变量赋值
+  type: assigner
+  version: '2'
 ```
+
+`input_type: variable` 时，`value` 是 `[node_id, field]` 选择器数组。
+`input_type: constant` 时，`value` 是字面常量值字符串。

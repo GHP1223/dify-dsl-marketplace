@@ -81,18 +81,33 @@
 
 ```yaml
 data:
-  title: Parameter Extractor
-  type: parameter-extractor
+  desc: ''
+  instruction: ''
   model:
-    provider: openai
-    name: gpt-4o-mini
+    completion_params:
+      temperature: 0.7
     mode: chat
-    completion_params: {}
-  query: [sys, query]
-  reasoning_mode: function_call
+    name: gpt-4o-mini
+    provider: openai
   parameters:
-    - name: city
-      type: string
-      description: 城市名
+    - description: 城市名称
+      name: city
       required: true
+      type: string
+    - description: 查询日期
+      name: date
+      required: false
+      type: string
+  query:
+    - sys
+    - query
+  reasoning_mode: prompt                    # function_call 或 prompt
+  selected: false
+  title: 参数提取器
+  type: parameter-extractor
+  variables: []
+  vision:
+    enabled: false
 ```
+
+抽取出的参数通过 `{{#参数提取器节点id.<参数名>#}}` 引用，如 `{{#pe_1.city#}}`。

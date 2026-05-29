@@ -7,30 +7,24 @@
 ## 必填字段
 
 - `type: http-request`: 指定当前节点是 HTTP 请求节点。
-- `method`: 请求方法，决定调用语义。
-- `url`: 请求地址，没有它无法发起调用。
-- `authorization`: 鉴权配置，决定如何访问外部服务。
-- `headers`: 请求头集合，常用于传认证、上下文或内容类型。
-- `params`: 查询参数集合，常用于 GET 或混合参数调用。
-
-`authorization` 是两层结构:
-
-- 外层 `authorization.type` 当前只区分 `no-auth` 和 `api-key`。
-- 具体鉴权样式写在 `authorization.config.type`，常见兼容值包括 `basic`、`bearer`、`custom`。
-
-`authorization.type` 常见值:
-
-- `no-auth`: 目标接口无需鉴权时使用。
-- `api-key`: 目标接口需要显式凭证时使用。
-
-若是 `api-key`，还要补 `config`，否则请求鉴权信息不完整。
-不要把 `authorization.type` 直接写成 `basic` 或 `bearer`。
+- `method`: 请求方法，`get`、`post`、`put`、`patch`、`delete`。
+- `url`: 请求地址，支持 `{{#变量#}}` 模板。
+- `authorization`: 鉴权配置，两层结构:
+  - 外层 `authorization.type`: `no-auth` 或 `api-key`。**不要**写成 `basic` 或 `bearer`。
+  - 若是 `api-key`，内层 `authorization.config`: `{ type: basic|bearer|custom, api_key: ..., header: ... }`
+- `headers`: HTTP 请求头，字符串格式，每行一个 `Key:Value`。
+- `params`: URL 查询参数，字符串格式。
+- `body`: 请求体配置，含 `type`(none/json/form-data/x-www-form-urlencoded) 和 `data` 数组。
+- `timeout`: 超时配置:
+  - `max_connect_timeout: 0` — 0 表示无限制
+  - `max_read_timeout: 0`
+  - `max_write_timeout: 0`
+  - 可选精确定时: `connect`、`read`、`write` (单位秒)
 
 ## 选填字段
 
-- `body`: 请求需要提交正文时填写；GET 或空体调用时可省略。
-- `timeout`: 需要控制超时时间时填写，避免外部服务拖垮链路。
-- `ssl_verify`: 需要显式控制证书校验时填写。
+- `retry_config`: 重试配置。含 `retry_enabled`、`max_retries`、`retry_interval`(毫秒)。
+- `ssl_verify`: 证书校验控制。
 
 ## 贯通性分析
 
@@ -88,19 +82,50 @@
 - `body.data` 有时会出现空字符串，这属于兼容写法。
 - `retry_config.enabled` 与 `retry_enabled` 可能混用，生成新 DSL 时不要无脑照抄。
 
-## 最小骨架
+## 节点完整结构
 
 ```yaml
-data:
-  title: HTTP Request
-  type: http-request
-  method: GET
-  url: "{{#start.url#}}"
-  authorization:
-    type: no-auth
-  headers: ""
-  params: ""
-  body:
-    type: none
-    data: []
+- data:
+    authorization:
+      type: no-auth                        # 或 api-key
+      config: null                          # api-key 时填写: { type: bearer, api_key: '...', header: 'Authorization' }
+    body:
+      type: json                            # none, json, form-data, x-www-form-urlencoded
+      data:
+        - id: key-value-1
+          key: ''
+          type: text
+          value: '{"key": "{{#nodeId.var#}}"}'
+    desc: ''
+    headers: |                              # 字符串格式，一行一个 Header
+      Content-Type:application/json
+      Authorization:Bearer {{#env.apikey#}}
+    method: post
+    params: ''
+    retry_config:                           # 可选
+      max_retries: 3
+      retry_enabled: true
+      retry_interval: 100
+    selected: false
+    timeout:
+      max_connect_timeout: 0                # 0 = 无限制
+      max_read_timeout: 0
+      max_write_timeout: 0
+    title: HTTP Request
+    type: http-request
+    url: 'https://api.example.com/endpoint'
+    variables: []
+  height: 106
+  id: http
+  position:
+    x: 400
+    y: 282
+  positionAbsolute:
+    x: 400
+    y: 282
+  selected: false
+  sourcePosition: right
+  targetPosition: left
+  type: custom
+  width: 244
 ```

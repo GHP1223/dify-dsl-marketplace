@@ -92,13 +92,69 @@
 
 ```yaml
 data:
-  title: Knowledge Retrieval
-  type: knowledge-retrieval
-  query_variable_selector: [sys, query]
-  dataset_ids: ["dataset_1"]
-  retrieval_mode: multiple
+  desc: ''
+  dataset_ids:
+    - <dataset_uuid>
   multiple_retrieval_config:
-    top_k: 3
-    score_threshold: 0.5
-    score_threshold_enabled: false
+    reranking_enable: true
+    reranking_mode: reranking_model
+    reranking_model:
+      model: <reranking_model_name>
+      provider: <provider>
+    top_k: 4
+  query_variable_selector:
+    - <node_id>
+    - sys.query
+  retrieval_mode: multiple
+  selected: false
+  title: 知识检索
+  type: knowledge-retrieval
+```
+
+输出变量通过 `{{#知识检索节点id.result#}}` 引用。
+
+## 节点完整结构
+
+```yaml
+- data:
+    desc: ''
+    dataset_ids:
+      - <dataset_uuid>
+    multiple_retrieval_config:
+      reranking_enable: true
+      reranking_mode: reranking_model           # 或 weighting_schema
+      reranking_model:                          # reranking_mode=reranking_model 时填写
+        model: bce-reranker-base_v1
+        provider: siliconflow
+      top_k: 4                                  # 检索返回条数
+    query_variable_selector:
+      - <source_node_id>
+      - sys.query
+    retrieval_mode: multiple                    # multiple 或 single
+    selected: false
+    title: 知识检索
+    type: knowledge-retrieval
+  height: 90
+  id: kr
+  position:
+    x: 400
+    y: 282
+  positionAbsolute:
+    x: 400
+    y: 282
+  selected: false
+  sourcePosition: right
+  targetPosition: left
+  type: custom
+  width: 244
+```
+
+`retrieval_mode: single` 时，用 `single_retrieval_config` 替代 `multiple_retrieval_config`:
+```yaml
+  single_retrieval_config:
+    model:
+      provider: openai
+      name: gpt-4o-mini
+      mode: chat
+      completion_params: {}
 ```

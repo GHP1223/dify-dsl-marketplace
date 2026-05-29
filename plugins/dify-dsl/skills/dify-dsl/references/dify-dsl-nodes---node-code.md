@@ -92,15 +92,23 @@
 
 ```yaml
 data:
-  title: Code
-  type: code
-  variables: []
-  code_language: python3
   code: |
-    def main():
-        return {"result": "ok"}
+    def main(arg1: str) -> dict:
+        return {"result": arg1.upper()}
+  code_language: python3
+  desc: ''
   outputs:
     result:
-      type: string
       children: null
+      type: string
+  selected: false
+  title: Code
+  type: code
+  variables:
+    - value_selector:
+        - <source_node_id>
+        - <source_field>
+      variable: arg1
 ```
+
+`outputs` 中的字段名必须与 `main()` 返回值 keys 一致。`outputs[*].type` 支持: `string`、`number`、`object`、`array[string]`、`array[object]`。
